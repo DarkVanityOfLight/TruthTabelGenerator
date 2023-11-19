@@ -2,12 +2,40 @@ const std = @import("std");
 
 const ParseError = error{ IdentifierToLong, NoSuchIdentifier };
 
-fn try_parse_ident(ident: []const u8) []const u8 {
-    switch (ident) {}
+fn isKeyword(identifier: []const u8, keyword: []const u8) bool {
+    return std.mem.eql(u8, identifier, keyword);
 }
 
-pub fn parse_to_human_readable(input: []const u8) !std.mem.Buffer {
-    var out = std.mem.Buffer.init(input.len);
+test "isKeyword" {
+    try std.testing.expect(isKeyword("neg", "neg"));
+    try std.testing.expect(!isKeyword("lor", "land"));
+}
+
+fn parse_ident(ident: []const u8) ![]const u8 {
+    if (isKeyword(ident, "neg")) {
+        return "NOT";
+    } else if (isKeyword(ident, "lor")) {
+        return "OR";
+    } else if (isKeyword(ident, "land")) {
+        return "AND";
+    } else if (isKeyword(ident, "rightarrow") or isKeyword(ident, "implies")) {
+        return "IMPLIES";
+    } else {
+        return ParseError.NoSuchIdentifier;
+    }
+}
+
+test "parse_ident" {
+    try std.testing.expect(std.mem.eql(u8, try parse_ident("neg"), "NOT"));
+    try std.testing.expect(std.mem.eql(u8, try parse_ident("lor"), "OR"));
+    try std.testing.expect(std.mem.eql(u8, try parse_ident("land"), "AND"));
+    try std.testing.expect(std.mem.eql(u8, try parse_ident("rightarrow"), "IMPLIES"));
+    try std.testing.expect(std.mem.eql(u8, try parse_ident("implies"), "IMPLIES"));
+    try std.testing.expect(ParseError.NoSuchIdentifier == parse_ident("foo"));
+}
+
+pub fn parse_to_human_readable(allocator: std.mem.allocator, input: []const u8) ![]const u8 {
+    var builder = std.ArrayList(u8).init(allocator);
 
     var specialBuffer: [10]u8 = u8{};
     var specialBufferP: usize = 0;
@@ -24,12 +52,17 @@ pub fn parse_to_human_readable(input: []const u8) !std.mem.Buffer {
                     if (specialBufferP >= 9) {
                         return ParseError.IdentifierToLong;
                     }
+
+                    const readableident = parse_ident(specialBuffer[0..specialBufferP]);
+                    if (readableident != ParseError.NoSuchIdentifier) {
+                        try builder.append(readableident);
+                    }
                 }
             },
         }
     }
 
-    return out;
+    return builder.toOwnedSlice();
 }
 
 pub fn main() !void {
@@ -46,11 +79,4 @@ pub fn main() !void {
     try stdout.print("Run `zig build test` to run the tests.\n", .{});
 
     try bw.flush(); // don't forget to flush!
-}
-
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
 }
