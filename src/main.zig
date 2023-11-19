@@ -80,10 +80,10 @@ pub fn parse_to_human_readable(allocator: std.mem.Allocator, input: []const u8) 
 
 test "parse to parse_to_human_readable" {
     const alloc = std.testing.allocator;
-    const readable = try parse_to_human_readable(alloc, "a \\rightarrow b \\implies c \\lor d \\land \\neg b");
+    const readable = try parse_to_human_readable(alloc, "(a \\rightarrow b) \\implies c \\lor d \\land \\neg b");
     defer alloc.free(readable);
 
-    try std.testing.expect(std.mem.eql(u8, "a IMPLIES b IMPLIES c OR d AND NOT b", readable));
+    try std.testing.expect(std.mem.eql(u8, "(a IMPLIES b) IMPLIES c OR d AND NOT b", readable));
 }
 
 pub fn main() !void {
