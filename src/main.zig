@@ -34,10 +34,10 @@ test "parse_ident" {
     try std.testing.expect(ParseError.NoSuchIdentifier == parse_ident("foo"));
 }
 
-pub fn parse_to_human_readable(allocator: std.mem.allocator, input: []const u8) ![]const u8 {
+pub fn parse_to_human_readable(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
     var builder = std.ArrayList(u8).init(allocator);
 
-    var specialBuffer: [10]u8 = u8{};
+    var specialBuffer: [10]u8 = undefined;
     var specialBufferP: usize = 0;
     var control = false;
     for (input) |char| {
@@ -47,22 +47,43 @@ pub fn parse_to_human_readable(allocator: std.mem.allocator, input: []const u8) 
             },
             else => {
                 if (control) {
-                    specialBuffer[specialBufferP] = char;
-                    specialBufferP += 1;
-                    if (specialBufferP >= 9) {
+                    if (specialBufferP > 9) {
                         return ParseError.IdentifierToLong;
                     }
 
+                    specialBuffer[specialBufferP] = char;
+                    specialBufferP += 1;
+
                     const readableident = parse_ident(specialBuffer[0..specialBufferP]);
-                    if (readableident != ParseError.NoSuchIdentifier) {
-                        try builder.append(readableident);
+
+                    if (readableident) |rident| {
+                        for (rident) |c| {
+                            try builder.append(c);
+                        }
+                        specialBufferP = 0;
+                        control = false;
+                    } else |err| switch (err) {
+                        ParseError.NoSuchIdentifier => |e| {
+                            std.debug.print("Error: {}\n", .{e});
+                        },
+                        else => unreachable,
                     }
+                } else {
+                    try builder.append(char);
                 }
             },
         }
     }
 
     return builder.toOwnedSlice();
+}
+
+test "parse to parse_to_human_readable" {
+    const alloc = std.testing.allocator;
+    const readable = try parse_to_human_readable(alloc, "a \\rightarrow b \\implies c \\lor d \\land \\neg b");
+    defer alloc.free(readable);
+
+    try std.testing.expect(std.mem.eql(u8, "a IMPLIES b IMPLIES c OR d AND NOT b", readable));
 }
 
 pub fn main() !void {
